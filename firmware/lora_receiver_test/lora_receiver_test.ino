@@ -15,10 +15,10 @@
 #define LORA_FIX_LENGTH_PAYLOAD_ON false
 #define LORA_IQ_INVERSION_ON false
 #define RX_TIMEOUT_VALUE    1000
-#define BUFFER_SIZE         64
+#define BUFFER_SIZE         222 // max payload for SF7/125kHz
 
 /********************************* Globals *********************************************/
-char rxpacket[BUFFER_SIZE];
+uint8_t rxpacket[BUFFER_SIZE];
 static RadioEvents_t RadioEvents;
 
 volatile bool receiveFlag = false;
@@ -46,11 +46,10 @@ void showLogo() {
 
 /********************************* Callbacks *********************************************/
 void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr) {
-  memcpy(rxpacket, payload, size);
-  rxpacket[size] = '\0';
+  lastSize = size > BUFFER_SIZE ? BUFFER_SIZE : size; // safety check
+  memcpy(rxpacket, payload, lastSize);
   lastRssi = rssi;
   lastSnr = snr;
-  lastSize = size;
   receiveFlag = true;
   Radio.Sleep();
 }
@@ -98,36 +97,44 @@ void setup() {
 
   Serial.println("LoRa Receiver starting...");
   lora_init();
-  Radio.Rx(0);
-}
-
-
-/********************************* Setup & Loop *********************************************/
-
-void manipulateIncomingPayload(uint8_t *data, uint16_t size, uint8_t key) {
-  for (uint16_t i = 0; i < size; i++) {
-    data[i] ^= key;
-  }
+  Radio.Rx(0); // start receiving
 }
 
 void loop() {
   if (receiveFlag) {
     receiveFlag = false;
 
-    Serial.print("RAW:");
+    // Print raw packet in HEX
+    Serial.print("RAW: ");
     for (int i = 0; i < lastSize; i++) {
-      if ((uint8_t)rxpacket[i] < 0x10) Serial.print("0");
-      Serial.print((uint8_t)rxpacket[i], HEX);
+      if (rxpacket[i] < 0x10) Serial.print("0");
+      Serial.print(rxpacket[i], HEX);
       Serial.print(" ");
     }
     Serial.println();
 
-    Serial.print("TXT:");
-    Serial.println(rxpacket);
+    // Print as ASCII text (safe up to lastSize)
+    Serial.print("TXT: ");
+    for (int i = 0; i < lastSize; i++) {
+      char c = (char)rxpacket[i];
+      Serial.print(c);
+    }
+    Serial.println();
 
-    Serial.printf("LEN:%d RSSI:%d SNR:%d\n", lastSize, lastRssi, lastSnr);
+    // Print metadata
+    Serial.printf("LEN: %d RSSI: %d SNR: %d\n", lastSize, lastRssi, lastSnr);
 
-    Radio.Rx(0);
+    // Display first line on OLED
+    String line = "";
+    for (int i = 0; i < lastSize && i < 16; i++) { // display only first 16 bytes
+      if (rxpacket[i] < 0x10) line += "0";
+      line += String(rxpacket[i], HEX) + " ";
+    }
+    factoryDisplay.clear();
+    factoryDisplay.drawString(0, 0, line);
+    factoryDisplay.display();
+
+    Radio.Rx(0); // go back to receive mode
   }
 
   Radio.IrqProcess();

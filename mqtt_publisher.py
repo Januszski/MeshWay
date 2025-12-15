@@ -1,24 +1,11 @@
-
-import pickle
-
-import paho.mqtt.client as mqtt
 import serial
 
-SERIAL_PORT = "/dev/cu.SLAB_USBtoUART"
+SERIAL_PORT = "/dev/cu.SLAB_USBtoUART"  # change as needed
 BAUD_RATE = 115200
-
-MQTT_BROKER = "127.0.0.1"
-MQTT_PORT = 1883
-BASE_TOPIC = "TEAM_{}/weather_data"
 
 def main():
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-
-    client = mqtt.Client()
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_start()
-
-    print("Bridge running... pickling RAW packets to MQTT.")
+    print("Listening for LoRa packets...")
 
     try:
         while True:
@@ -30,36 +17,25 @@ def main():
                 raw_data = line[4:].strip()
                 print(f"Received raw hex string: {raw_data}")
 
-                raw_bytes = bytes.fromhex(raw_data.replace(" ", ""))
-                print(f"Converted to bytes: {raw_bytes}")
-
-                if not raw_bytes:
-                    print("Warning: Empty packet, skipping")
+                # Convert hex string to bytes
+                try:
+                    raw_bytes = bytes.fromhex(raw_data.replace(" ", ""))
+                except ValueError:
+                    print("⚠️ Invalid hex string, skipping")
                     continue
 
-                # First byte = team number
-                team_number = raw_bytes[0]
-                print(f"Extracted team number: {team_number}")
+                # Print bytes as hex
+                hex_str = " ".join(f"{b:02X}" for b in raw_bytes)
+                print(f"HEX: {hex_str}")
 
-                # Make sure it's within range (1–40 for your case)
-                if 1 <= team_number <= 40:
-                    topic = BASE_TOPIC.format(team_number)
-                else:
-                    topic = "UNKNOWN_TEAM/weather_data"
-                    print(f"⚠️ Unknown team number {team_number}, using fallback topic")
-
-                payload = pickle.dumps(raw_bytes)
-
-                print(f"Publishing {len(payload)} bytes to topic '{topic}'")
-                client.publish(topic, payload)
+                # Print as ASCII (replace non-printable with '.')
+                ascii_str = "".join((chr(b) if 32 <= b <= 126 else ".") for b in raw_bytes)
+                print(f"ASCII: {ascii_str}\n")
 
     except KeyboardInterrupt:
-        print("\nStopping bridge...")
+        print("\nStopping listener...")
     finally:
-        client.loop_stop()
-        client.disconnect()
         ser.close()
 
 if __name__ == "__main__":
     main()
-
