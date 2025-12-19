@@ -8,6 +8,7 @@ uint8_t txpacket[BUFFER_SIZE];
 uint8_t rxpacket[BUFFER_SIZE];
 static RadioEvents_t RadioEvents;
 
+bool isGateway = false;
 volatile bool receiveFlag = false;
 int16_t lastRssi;
 int8_t lastSnr;
@@ -25,6 +26,8 @@ void VextON()  { pinMode(Vext, OUTPUT); digitalWrite(Vext, LOW);  }
 void VextOFF() { pinMode(Vext, OUTPUT); digitalWrite(Vext, HIGH); }
 
 /********************************* OLED Helpers *********************************************/
+
+
 void initDisplay() {
   factoryDisplay.init();
   factoryDisplay.clear();
@@ -89,13 +92,13 @@ void prepareRouteReplyPacket() {
 }
 
 void prepareLoRaBroadcast(char* message, size_t len) {
-    // Copy message into txpacket
     memset(txpacket, 0, BUFFER_SIZE);
     size_t copyLen = len > BUFFER_SIZE ? BUFFER_SIZE : len;
     memcpy(txpacket, message, copyLen);
 
-    // Send packet
     sendPacket();
+}
+
 void prepareForwardPacket() {
     for (int i = 0; i < BUFFER_SIZE; i++) {
         txpacket[i] = rxpacket[i];
@@ -161,6 +164,7 @@ void updateDestinationTable() {
     factoryDisplay.display();
 }
 
+
 void meshwayInit(int gateway) {
     Serial.begin(115200);
 
@@ -169,6 +173,8 @@ void meshwayInit(int gateway) {
     showLogo();
 
     lora_init();
+
+    isGateway = (gateway != 0);
 
     if (gateway) {
         destination_table[0] = {1, 0};
@@ -187,14 +193,15 @@ void meshwayRecv() {
     if (receiveFlag) {
         receiveFlag = false;
 
-        String line = "";
-        for (int i = 0; i < lastSize && i < 16; i++) {
-        if (rxpacket[i] < 0x10) line += "0";
-        line += String(rxpacket[i], HEX) + " ";
+        if (isGateway) {
+            Serial.write(SERIAL_START, sizeof(SERIAL_START));
+            sendSubfieldRaw("RAW:", rxpacket, lastSize);
+            sendSubfieldText("TXT:", (char*)rxpacket);
+            sendSubfieldStats(lastSize, lastRssi, lastSnr);
+            Serial.write(SERIAL_END, sizeof(SERIAL_END));
+            Serial.flush();
         }
-        factoryDisplay.clear();
-        factoryDisplay.drawString(0, 0, line);
-        factoryDisplay.display();
+
         int msg_type = rxpacket[TYPE_FIELD];
         if (msg_type == ROUTE_REQUEST) {
             prepareRouteReplyPacket();
@@ -202,7 +209,7 @@ void meshwayRecv() {
             sendPacket();
         } else if (msg_type == ROUTE_REPLY) {
             updateDestinationTable();
-        } else { //forward if reasonable
+        } else {
             int destination = rxpacket[DESTINATION_FIELD];
             int hop_count = rxpacket[HOP_FIELD];
             for (int i = 0; i < destination_table_size; i++) {
@@ -217,5 +224,71 @@ void meshwayRecv() {
         Radio.Rx(0);
     }
 
-  Radio.IrqProcess();
+    Radio.IrqProcess();
+}
+
+
+uint8_t simpleHash(const char* data, size_t len) {
+    uint8_t hash = 0;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= data[i];
+    }
+    return hash;
+}
+
+
+void sendLoRaMessage(const String& message) {
+    if (destination_table_size == 0) return;
+    
+    uint8_t destination = destination_table[0].destination_id;
+    uint8_t hop = hop_length > 0 ? hop_length - 1 : 0;
+
+    memset(txpacket, 0, BUFFER_SIZE);
+    txpacket[TYPE_FIELD] = 2;
+    txpacket[DESTINATION_FIELD] = destination;
+    txpacket[HOP_FIELD] = hop;
+    txpacket[3] = simpleHash(message.c_str(), message.length());
+    sendPacket();
+
+    delay(500);
+
+    memset(txpacket, 0, BUFFER_SIZE);
+    txpacket[TYPE_FIELD] = 3;
+    txpacket[DESTINATION_FIELD] = destination;
+    txpacket[HOP_FIELD] = hop;
+
+    size_t copyLen = message.length() > (BUFFER_SIZE - 3) ? (BUFFER_SIZE - 3) : message.length();
+    memcpy(txpacket + 3, message.c_str(), copyLen);
+
+    sendPacket();
+}
+
+
+
+void sendSubfieldRaw(const char* label, uint8_t* data, uint16_t size) {
+    Serial.write(SUBSTART, sizeof(SUBSTART));
+    Serial.print(label);
+    for (uint16_t i = 0; i < size; i++) {
+        if (data[i] < 0x10) Serial.print("0");
+        Serial.print(data[i], HEX);
+        Serial.print(" ");
+    }
+    Serial.println();
+    Serial.write(SUBEND, sizeof(SUBEND));
+    Serial.flush();
+}
+
+void sendSubfieldText(const char* label, const char* value) {
+    Serial.write(SUBSTART, sizeof(SUBSTART));
+    Serial.print(label);
+    Serial.println(value);
+    Serial.write(SUBEND, sizeof(SUBEND));
+    Serial.flush();
+}
+
+void sendSubfieldStats(uint16_t len, int16_t rssi, int8_t snr) {
+    Serial.write(SUBSTART, sizeof(SUBSTART));
+    Serial.printf("LEN:%d RSSI:%d SNR:%d\n", len, rssi, snr);
+    Serial.write(SUBEND, sizeof(SUBEND));
+    Serial.flush();
 }

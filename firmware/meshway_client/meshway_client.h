@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-void meshwayClientInit();  // Initialize Wi-Fi AP + web server
-void meshwayClientLoop();  // Call repeatedly in loop
+void meshwayClientInit();
+void meshwayClientLoop();
 
 #endif

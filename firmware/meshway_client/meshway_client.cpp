@@ -1,5 +1,5 @@
 #include "meshway_client.h"
-#include "meshway.h"   // Import LoRa functions
+#include "meshway.h"
 #include <WiFi.h>
 #include <WebServer.h>
 
@@ -8,9 +8,8 @@ const char* password = "12345678";
 
 WebServer server(80);
 
-// Global variable to hold message from web
-String webMessage = ""; // temporary holder
-char data_payload[BUFFER_SIZE]; // will store payload for LoRa broadcast
+String webMessage = "";
+char data_payload[BUFFER_SIZE];
 
 const char* htmlPage = R"rawliteral(
 <!DOCTYPE html>
@@ -44,18 +43,13 @@ void handleRoot() {
 }
 
 void handleSend() {
-  if (server.hasArg("message")) {
+if (server.hasArg("message")) {
     webMessage = server.arg("message"); 
     Serial.print("Received message from web: ");
     Serial.println(webMessage);
 
-    // Copy webMessage into data_payload for LoRa
-    memset(data_payload, 0, BUFFER_SIZE);
-    webMessage.toCharArray(data_payload, BUFFER_SIZE);
-
-    // Trigger LoRa send
-    prepareLoRaBroadcast(data_payload, webMessage.length());
-  }
+    sendLoRaMessage(webMessage);
+}
   server.sendHeader("Location", "/");
   server.send(303);
 }
