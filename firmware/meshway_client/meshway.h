@@ -16,16 +16,11 @@
 #define LORA_IQ_INVERSION_ON        false
 #define RX_TIMEOUT_VALUE    1000
 #define BUFFER_SIZE         222       // Number of bytes to send
-#define MAX_HOP_LEN         255
 
 //message types
-#define ROUTE_REQUEST 0
-#define ROUTE_REPLY 1
+#define ROUTE_REQUEST 0x00
+#define ROUTE_REPLY 0x01
 
-//packet fields
-#define TYPE_FIELD 0
-#define DESTINATION_FIELD 1
-#define HOP_FIELD 2
 
 #define CLIENT_NODE 0
 #define GATEWAY_NODE 1
