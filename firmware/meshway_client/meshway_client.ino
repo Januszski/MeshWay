@@ -3,7 +3,7 @@
 #include "meshway_client.h"
 
 void setup() {
-  meshwayInit(0);         // Start LoRa
+  meshwayInit(CLIENT_NODE);         // Start LoRa
   meshwayClientInit();    // Start Wi-Fi + web server
 }
 
