@@ -15,6 +15,8 @@ uint16_t lastSize;
 
 destinationDist destination_table[DESTINATION_TABLE_MAX_SIZE];
 uint8_t destination_table_size;
+uint8_t target_destination;
+uint8_t hop_length;
 
 SSD1306Wire factoryDisplay(0x3c, 500000, SDA_OLED, SCL_OLED, GEOMETRY_128_64, RST_OLED);
 
@@ -86,7 +88,15 @@ void prepareRouteReplyPacket() {
     }
 }
 
+void prepareForwardPacket() {
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        txpacket[i] = rxpacket[i];
+    }
+    txpacket[HOP_FIELD] = rxpacket[HOP_FIELD] - 1;
+}
+
 void sendPacket() {
+    delay(500);
     Serial.print("Sending packet bytes: ");
     for (int i = 0; i < BUFFER_SIZE; i++) {
         Serial.print(txpacket[i], HEX);
@@ -104,7 +114,7 @@ void sendPacket() {
     factoryDisplay.display();
 
     Radio.Send(txpacket, BUFFER_SIZE);
-    delay(250);
+    delay(500);
 }
 
 /********************************* Meshway Logic *********************************************/
@@ -129,13 +139,18 @@ void updateDestinationTable() {
             destination_table[destination_table_size].hop_count = hop_count;
             destination_table_size++;
         }
+        if (hop_count < hop_length) {
+            hop_length = hop_count;
+            target_destination = destination_id;
+        }
     }
     String line = "";
     for (int i = 0; i < destination_table_size; i++) {
         line += String(destination_table[i].destination_id, HEX) + " ";
         line += String(destination_table[i].hop_count, HEX) + " ";
     }
-    factoryDisplay.drawString(0, 6, line);
+    factoryDisplay.drawString(0, 8, line);
+    factoryDisplay.display();
 }
 
 void meshwayInit(int gateway) {
@@ -144,7 +159,6 @@ void meshwayInit(int gateway) {
     VextON();
     initDisplay();
     showLogo();
-    delay(500);
 
     lora_init();
 
@@ -152,6 +166,8 @@ void meshwayInit(int gateway) {
         destination_table[0] = {1, 0};
         destination_table_size = 1;
     } else {
+        target_destination = 0;
+        hop_length = MAX_HOP_LEN;
         prepareRouteRequestPacket();
         sendPacket();
     }
@@ -171,15 +187,24 @@ void meshwayRecv() {
         factoryDisplay.clear();
         factoryDisplay.drawString(0, 0, line);
         factoryDisplay.display();
-        /*
-        int msg_type = rxpacket[0];
+        int msg_type = rxpacket[TYPE_FIELD];
         if (msg_type == ROUTE_REQUEST) {
-            //Radio.Standby();
             prepareRouteReplyPacket();
-            //sendPacket();
+            Radio.Standby();
+            sendPacket();
         } else if (msg_type == ROUTE_REPLY) {
             updateDestinationTable();
-        } */
+        } else { //forward if reasonable
+            int destination = rxpacket[DESTINATION_FIELD];
+            int hop_count = rxpacket[HOP_FIELD];
+            for (int i = 0; i < destination_table_size; i++) {
+                if (destination_table[i].destination_id == destination && hop_count <= destination_table[i].hop_count) {
+                    prepareForwardPacket();
+                    Radio.Standby();
+                    sendPacket();
+                }
+            }
+        }
 
         Radio.Rx(0);
     }
