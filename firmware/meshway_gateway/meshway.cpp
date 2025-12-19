@@ -75,27 +75,36 @@ void prepareRouteRequestPacket() {
 void prepareRouteReplyPacket() {
     txpacket[0] = ROUTE_REPLY;
     txpacket[1] = destination_table_size;
+    int idx = 0;
     for (int i = 0; i < destination_table_size; i++) {
-        int idx = i * 2 + 2;
+        idx = i * 2 + 2;
         txpacket[idx] = destination_table[i].destination_id;
         txpacket[idx + 1] = destination_table[i].hop_count;
     }
-    for (int i = 1; i < BUFFER_SIZE; i++) {
+    for (int i = idx + 2; i < BUFFER_SIZE; i++) {
         txpacket[i] = 0x00;
     }
 }
 
 void sendPacket() {
+    Serial.print("Sending packet bytes: ");
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        Serial.print(txpacket[i], HEX);
+        Serial.print(" ");
+    }
+
+    Serial.println();
     String line = "";
     for (int i = 0; i < BUFFER_SIZE; i++) {
         if (txpacket[i] < 0x10) line += "0";
         line += String(txpacket[i], HEX) + " ";
     }
     factoryDisplay.clear();
-    factoryDisplay.drawString(0, 3, line); 
+    factoryDisplay.drawString(0, 12, line); 
     factoryDisplay.display();
 
     Radio.Send(txpacket, BUFFER_SIZE);
+    delay(250);
 }
 
 /********************************* Meshway Logic *********************************************/
@@ -126,7 +135,7 @@ void updateDestinationTable() {
         line += String(destination_table[i].destination_id, HEX) + " ";
         line += String(destination_table[i].hop_count, HEX) + " ";
     }
-    factoryDisplay.drawString(0, 1, line);
+    factoryDisplay.drawString(0, 6, line);
 }
 
 void meshwayInit(int gateway) {
@@ -161,17 +170,16 @@ void meshwayRecv() {
         }
         factoryDisplay.clear();
         factoryDisplay.drawString(0, 0, line);
-
+        factoryDisplay.display();
+        /*
         int msg_type = rxpacket[0];
         if (msg_type == ROUTE_REQUEST) {
-            Radio.Standby();
+            //Radio.Standby();
             prepareRouteReplyPacket();
-            sendPacket();
+            //sendPacket();
         } else if (msg_type == ROUTE_REPLY) {
             updateDestinationTable();
-        }
-
-        factoryDisplay.display();
+        } */
 
         Radio.Rx(0);
     }

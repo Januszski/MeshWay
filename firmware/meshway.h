@@ -20,6 +20,10 @@
 #define ROUTE_REQUEST 0x00
 #define ROUTE_REPLY 0x01
 
+
+#define CLIENT_NODE 0
+#define GATEWAY_NODE 1
+
 #define DESTINATION_TABLE_MAX_SIZE 8
 
 typedef struct {
