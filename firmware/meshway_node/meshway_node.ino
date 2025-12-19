@@ -3,7 +3,7 @@
 
 /********************************* Setup & Loop *********************************************/
 void setup() {
-  meshwayInit(0);
+  meshwayInit(CLIENT_NODE);
 }
 
 void loop() {

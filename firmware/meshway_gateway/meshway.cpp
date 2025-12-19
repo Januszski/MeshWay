@@ -87,6 +87,7 @@ void prepareRouteReplyPacket() {
 }
 
 void sendPacket() {
+    delay(500);
     Serial.print("Sending packet bytes: ");
     for (int i = 0; i < BUFFER_SIZE; i++) {
         Serial.print(txpacket[i], HEX);
@@ -104,7 +105,7 @@ void sendPacket() {
     factoryDisplay.display();
 
     Radio.Send(txpacket, BUFFER_SIZE);
-    delay(250);
+    delay(500);
 }
 
 /********************************* Meshway Logic *********************************************/
@@ -136,6 +137,7 @@ void updateDestinationTable() {
         line += String(destination_table[i].hop_count, HEX) + " ";
     }
     factoryDisplay.drawString(0, 6, line);
+    factoryDisplay.display();
 }
 
 void meshwayInit(int gateway) {
@@ -171,15 +173,14 @@ void meshwayRecv() {
         factoryDisplay.clear();
         factoryDisplay.drawString(0, 0, line);
         factoryDisplay.display();
-        /*
         int msg_type = rxpacket[0];
         if (msg_type == ROUTE_REQUEST) {
-            //Radio.Standby();
             prepareRouteReplyPacket();
-            //sendPacket();
+            Radio.Standby();
+            sendPacket();
         } else if (msg_type == ROUTE_REPLY) {
             updateDestinationTable();
-        } */
+        }
 
         Radio.Rx(0);
     }
