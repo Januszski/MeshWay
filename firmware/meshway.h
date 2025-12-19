@@ -2,6 +2,7 @@
 #define MESHWAY_H
 
 #include <cstdint>
+#include <cstddef>
 
 /********************************* LoRa Config *********************************************/
 #define RF_FREQUENCY        915000000 // Hz
@@ -31,7 +32,9 @@ typedef struct {
   uint8_t hop_count;
 } destinationDist;
 
+void sendPacket();
 void meshwayInit(int gateway);
+void prepareLoRaBroadcast(char* message, size_t len);
 void meshwayRecv();
 
 #endif

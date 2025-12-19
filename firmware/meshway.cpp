@@ -86,6 +86,16 @@ void prepareRouteReplyPacket() {
     }
 }
 
+void prepareLoRaBroadcast(char* message, size_t len) {
+    // Copy message into txpacket
+    memset(txpacket, 0, BUFFER_SIZE);
+    size_t copyLen = len > BUFFER_SIZE ? BUFFER_SIZE : len;
+    memcpy(txpacket, message, copyLen);
+
+    // Send packet
+    sendPacket();
+}
+
 void sendPacket() {
     Serial.print("Sending packet bytes: ");
     for (int i = 0; i < BUFFER_SIZE; i++) {
